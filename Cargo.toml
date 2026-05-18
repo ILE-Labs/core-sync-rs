@@ -1,0 +1,34 @@
+[package]
+name = "core-sync-rs"
+version = "0.1.0"
+edition = "2021"
+description = "Local differential sync for Sia — CDC chunking, manifest diffing, delta assembly"
+authors = ["ILE Labs <engineering@ile-labs.com>"]
+license = "MIT"
+repository = "https://github.com/ile-labs/core-sync-rs"
+readme = "README.md"
+keywords = ["sync", "cdc", "fastcdc", "deduplication", "manifest"]
+categories = ["filesystem", "encoding"]
+
+[lib]
+name = "core_sync_rs"
+path = "src/lib.rs"
+
+[[bin]]
+name = "core-sync-rs"
+path = "src/bin/core-sync-rs.rs"
+
+[dependencies]
+fastcdc = "3.1"
+sha2 = "0.10"
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
