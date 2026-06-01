@@ -19,7 +19,8 @@ fn main() {
     let path = dir.path().join("document.bin");
 
     let mut file = File::create(&path).expect("create file");
-    file.write_all(&chunker::varied_data(32_768)).expect("write");
+    file.write_all(&chunker::varied_data(32_768))
+        .expect("write");
 
     let manifests = InMemoryManifestStore::new();
     let storage = InMemoryStorageBackend::new();
@@ -58,5 +59,8 @@ fn main() {
     println!("\nAfter edit:");
     println!("  reuse ratio: {:.1}%", updated.reuse_ratio() * 100.0);
     println!("  delta uploaded: {} bytes", updated.upload.bytes_uploaded);
-    println!("  bandwidth saved: {} bytes", updated.bandwidth_saved_bytes());
+    println!(
+        "  bandwidth saved: {} bytes",
+        updated.bandwidth_saved_bytes()
+    );
 }

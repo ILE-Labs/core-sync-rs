@@ -45,8 +45,8 @@ impl ManifestRecord {
 
     /// Deserializes a record from indexd object metadata JSON.
     pub fn from_json(json: &str) -> Result<Self> {
-        let record: Self = serde_json::from_str(json)
-            .map_err(|e| CoreSyncError::Indexd(e.to_string()))?;
+        let record: Self =
+            serde_json::from_str(json).map_err(|e| CoreSyncError::Indexd(e.to_string()))?;
         if record.version != MANIFEST_SCHEMA_VERSION {
             return Err(CoreSyncError::Indexd(format!(
                 "unsupported manifest schema version: {}",
@@ -163,10 +163,7 @@ mod tests {
         let store = InMemoryManifestStore::new();
         let manifest = sample_manifest();
         store.seed("seeded", manifest.clone()).unwrap();
-        assert_eq!(
-            store.get_manifest("seeded").unwrap().unwrap(),
-            manifest
-        );
+        assert_eq!(store.get_manifest("seeded").unwrap().unwrap(), manifest);
 
         let mut invalid = FileManifest::new("bad");
         invalid.add_chunk(ChunkMeta {

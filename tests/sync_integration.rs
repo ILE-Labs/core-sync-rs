@@ -62,7 +62,10 @@ fn middle_insert_preserves_distant_chunks() {
         plan.reused_count() >= 1,
         "middle insert should reuse unaffected chunks"
     );
-    assert!(plan.upload_count() > 0, "edit region should require new chunks");
+    assert!(
+        plan.upload_count() > 0,
+        "edit region should require new chunks"
+    );
     assert!(plan.payload_size() < v2_data.len());
 }
 

@@ -25,10 +25,11 @@ pub fn process_file<P: AsRef<Path>>(path: P) -> Result<FileManifest> {
         source,
     })?;
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).map_err(|source| CoreSyncError::Io {
-        path: path_str,
-        source,
-    })?;
+    file.read_to_end(&mut buffer)
+        .map_err(|source| CoreSyncError::Io {
+            path: path_str,
+            source,
+        })?;
 
     chunk_bytes(&buffer, path_ref.to_string_lossy().into_owned())
 }
@@ -116,7 +117,10 @@ mod tests {
         let m1 = chunk_bytes(&v1, "v1.bin").unwrap();
         let m2 = chunk_bytes(&v2, "v2.bin").unwrap();
 
-        assert!(m1.chunks.len() > 4, "test data should produce multiple chunks");
+        assert!(
+            m1.chunks.len() > 4,
+            "test data should produce multiple chunks"
+        );
 
         let reused = m1
             .chunks
@@ -151,6 +155,9 @@ mod tests {
             shared >= 1,
             "middle insert should reuse unaffected chunks (shared={shared})"
         );
-        assert!(shared < modified.chunks.len(), "edit should require some new chunks");
+        assert!(
+            shared < modified.chunks.len(),
+            "edit should require some new chunks"
+        );
     }
 }

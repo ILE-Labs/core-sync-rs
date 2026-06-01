@@ -45,7 +45,8 @@ impl SyncReport {
     /// Bytes saved compared to uploading the full local file.
     #[must_use]
     pub fn bandwidth_saved_bytes(&self) -> u64 {
-        self.plan.bandwidth_saved_bytes(self.local_manifest.file_size)
+        self.plan
+            .bandwidth_saved_bytes(self.local_manifest.file_size)
     }
 }
 

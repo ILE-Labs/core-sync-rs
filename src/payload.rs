@@ -96,13 +96,12 @@ pub fn assemble_delta_from_bytes(
     for upload in uploads {
         validate_chunk_bounds(upload, file_size)?;
 
-        let start = usize::try_from(upload.offset).map_err(|_| {
-            CoreSyncError::ChunkOutOfBounds {
+        let start =
+            usize::try_from(upload.offset).map_err(|_| CoreSyncError::ChunkOutOfBounds {
                 offset: upload.offset,
                 length: upload.length,
                 file_size,
-            }
-        })?;
+            })?;
         let end = start + upload.length;
         let data = file_data[start..end].to_vec();
         chunks.push(verify_chunk_payload(upload, data)?);
@@ -128,10 +127,11 @@ fn read_upload_chunks(
                 path: path.to_string(),
                 source,
             })?;
-        file.read_exact(&mut buf).map_err(|source| CoreSyncError::Io {
-            path: path.to_string(),
-            source,
-        })?;
+        file.read_exact(&mut buf)
+            .map_err(|source| CoreSyncError::Io {
+                path: path.to_string(),
+                source,
+            })?;
 
         chunks.push(verify_chunk_payload(upload, buf)?);
     }
@@ -156,13 +156,15 @@ fn verify_chunk_payload(upload: &ChunkUploadRef, data: Vec<u8>) -> Result<ChunkP
 }
 
 fn validate_chunk_bounds(upload: &ChunkUploadRef, file_size: u64) -> Result<()> {
-    let end = upload.offset.checked_add(upload.length as u64).ok_or(
-        CoreSyncError::ChunkOutOfBounds {
-            offset: upload.offset,
-            length: upload.length,
-            file_size,
-        },
-    )?;
+    let end =
+        upload
+            .offset
+            .checked_add(upload.length as u64)
+            .ok_or(CoreSyncError::ChunkOutOfBounds {
+                offset: upload.offset,
+                length: upload.length,
+                file_size,
+            })?;
 
     if end > file_size {
         return Err(CoreSyncError::ChunkOutOfBounds {
@@ -200,7 +202,10 @@ mod tests {
 
         for (payload, upload_ref) in delta.chunks.iter().zip(plan.uploads.iter()) {
             assert_eq!(payload.hash, upload_ref.hash);
-            assert_eq!(payload.data, v2[upload_ref.offset as usize..][..upload_ref.length]);
+            assert_eq!(
+                payload.data,
+                v2[upload_ref.offset as usize..][..upload_ref.length]
+            );
         }
     }
 

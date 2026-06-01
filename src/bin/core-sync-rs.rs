@@ -23,11 +23,9 @@ fn run() -> Result<()> {
     println!("=================\n");
 
     let dir = std::env::temp_dir().join("core-sync-rs-demo");
-    std::fs::create_dir_all(&dir).map_err(|e| {
-        core_sync_rs::CoreSyncError::Io {
-            path: dir.to_string_lossy().into_owned(),
-            source: e,
-        }
+    std::fs::create_dir_all(&dir).map_err(|e| core_sync_rs::CoreSyncError::Io {
+        path: dir.to_string_lossy().into_owned(),
+        source: e,
     })?;
 
     let result = run_scenarios(&dir);
@@ -134,8 +132,7 @@ fn run_pipeline_on_path(
     );
     println!(
         "  delta: {} bytes in {} chunks (mock upload)",
-        report.upload.bytes_uploaded,
-        report.upload.chunks_uploaded
+        report.upload.bytes_uploaded, report.upload.chunks_uploaded
     );
     if !report.initial_upload {
         println!(
@@ -180,9 +177,10 @@ fn write_file(path: &Path, data: &[u8]) -> Result<()> {
         path: path.display().to_string(),
         source,
     })?;
-    file.write_all(data).map_err(|source| core_sync_rs::CoreSyncError::Io {
-        path: path.display().to_string(),
-        source,
-    })?;
+    file.write_all(data)
+        .map_err(|source| core_sync_rs::CoreSyncError::Io {
+            path: path.display().to_string(),
+            source,
+        })?;
     Ok(())
 }

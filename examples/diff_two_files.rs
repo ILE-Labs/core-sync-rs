@@ -48,11 +48,17 @@ fn main() {
             println!("  chunks (remote):  {}", remote.chunk_count());
             println!("  chunks (local):   {}", local.chunk_count());
             println!("  reused:           {}", plan.reused_count());
-            println!("  to upload:        {} chunks ({} bytes)",
-                plan.upload_count(), plan.payload_size());
+            println!(
+                "  to upload:        {} chunks ({} bytes)",
+                plan.upload_count(),
+                plan.payload_size()
+            );
             println!("  reuse ratio:      {:.1}%", plan.reuse_ratio() * 100.0);
-            println!("  delta verified:   {} bytes in {} chunks",
-                delta.total_bytes(), delta.len());
+            println!(
+                "  delta verified:   {} bytes in {} chunks",
+                delta.total_bytes(),
+                delta.len()
+            );
         }
         Err(e) => {
             eprintln!("error assembling delta: {e}");
