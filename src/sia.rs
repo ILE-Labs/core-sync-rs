@@ -1,6 +1,6 @@
 //! Sia SDK integration — delta upload handoff.
 //!
-//! After computing a [`DeltaPayload`](crate::payload::DeltaPayload), this module
+//! After computing a [`DeltaPayload`], this module
 //! hands the minimized byte stream to a storage backend for upload.
 //!
 //! See `docs/INTEGRATION.md` for wiring to `sia_storage::Sdk::upload`.

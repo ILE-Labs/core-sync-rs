@@ -4,8 +4,8 @@
 //! (`indexd`). Before syncing, the remote manifest is fetched; after a successful
 //! upload the updated local manifest is published back.
 //!
-//! Production apps wire this trait to [`sia_storage::Sdk::object`] and
-//! [`sia_storage::Sdk::update_object_metadata`] (see `docs/INTEGRATION.md`).
+//! Production apps wire this trait to `sia_storage::Sdk::object` and
+//! `sia_storage::Sdk::update_object_metadata` (see `docs/INTEGRATION.md`).
 
 use crate::error::{CoreSyncError, Result};
 use crate::manifest::FileManifest;
