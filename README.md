@@ -1,5 +1,3 @@
-# core-sync-rs
-
 Local differential sync for the [Sia](https://sia.tech) network.
 
 Early-stage library — the local chunking and diff engine works and is tested; wiring to live `sia_storage` and indexd is still ahead. See [Scope](#scope).
@@ -106,4 +104,4 @@ More detail in [ARCHITECTURE.md](ARCHITECTURE.md) and [docs/INTEGRATION.md](docs
 
 ## License
 
-MIT
+[MIT](LICENSE)
