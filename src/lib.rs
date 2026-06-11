@@ -41,4 +41,10 @@ pub mod pipeline;
 pub mod sia;
 pub mod sync_engine;
 
+#[cfg(feature = "sia-live")]
+pub mod indexd_live;
+
+#[cfg(feature = "sia-live")]
+pub mod sia_live;
+
 pub use error::{CoreSyncError, Result};

@@ -2,7 +2,8 @@
 
 Local differential sync for the [Sia](https://sia.tech) network.
 
-Early-stage library — the local chunking and diff engine works and is tested; wiring to live `sia_storage` and indexd is still ahead. See [Scope](#scope).
+Early-stage library — the local chunking and diff engine works and is tested; live `sia_storage` and indexd wiring is available behind a feature flag. See [Scope](#scope).
+The live wiring is now available behind the `sia-live` feature flag while the mock path remains the default.
 
 ## What it does
 
@@ -22,6 +23,7 @@ indexd        →  store chunk manifests on objects
 ```
 
 Right now the Sia SDK and indexd sides are mocked in memory so you can run everything without credentials.
+When you want to talk to live services, enable `sia-live` and provide the live URLs and credentials described below.
 
 ## Getting Started
 
@@ -40,19 +42,31 @@ You need Rust stable installed on your system.
    ```
 
 2. **Run the Demo**
-   The demo walks through three edit scenarios (an initial file upload, an append edit, and a middle insert) using the in-memory mock store and storage backend.
+   The default demo walks through three edit scenarios (an initial file upload, an append edit, and a middle insert) using the in-memory mock store and storage backend.
    ```bash
    cargo run
    ```
    You will see output detailing chunk count, reused chunks, uploaded delta sizes, and bandwidth savings.
 
-3. **Run the Test Suite**
+3. **Run the Live Sia Integration Demo**
+   The live demo uses the `sia-live` feature flag and connects to real storage and indexd endpoints configured through environment variables.
+   ```bash
+   cargo run --example live_sync --features sia-live
+   ```
+   Copy `.env.example` to `.env` or export the variables manually before running the demo:
+   - `CORE_SYNC_SIA_STORAGE_URL`
+   - `CORE_SYNC_SIA_STORAGE_TOKEN`
+   - `CORE_SYNC_INDEXD_URL`
+   - `CORE_SYNC_INDEXD_TOKEN`
+   - `CORE_SYNC_OBJECT_KEY`
+
+4. **Run the Test Suite**
    Run all unit and integration tests (validating CDC boundary conditions, offset safe-casting, concurrency safety, lock poisoning, and schema versioning):
    ```bash
    cargo test
    ```
 
-4. **Diff Two Local Files**
+5. **Diff Two Local Files**
    To compute and verify a sync plan between two arbitrary files on disk:
    ```bash
    cargo run --example diff_two_files -- <path-to-old-file> <path-to-new-file>
@@ -65,13 +79,12 @@ You need Rust stable installed on your system.
 - FastCDC chunking, SHA-256 manifests
 - Manifest diff and delta payload assembly
 - Pipeline that ties the steps together (`pipeline::sync_file`)
-- Trait stubs for indexd (`ManifestStore`) and Sia upload (`StorageBackend`) with in-memory impls
+- Trait boundaries for indexd (`ManifestStore`) and Sia upload (`StorageBackend`) with in-memory impls plus live adapters behind `sia-live`
 - Tests and CI
+- Live Sia adapters behind the `sia-live` feature flag
 
 **Not yet**
 
-- Real `sia_storage` uploads
-- Real indexd manifest persistence
 - CLI, watch mode, directory sync
 - Streaming reads for large files
 - crates.io release
@@ -86,11 +99,16 @@ src/
 ├── payload.rs          assemble upload bytes
 ├── indexd.rs           manifest store trait + mock
 ├── sia.rs              storage backend trait + mock
+├── indexd_live.rs      live indexd adapter (feature-gated)
+├── sia_live.rs         live Sia storage adapter (feature-gated)
 ├── pipeline.rs         orchestration
 └── bin/core-sync-rs.rs demo
 
 tests/sync_integration.rs
 examples/
+├── diff_two_files.rs
+├── sync_pipeline.rs
+└── live_sync.rs
 ```
 
 More detail in [ARCHITECTURE.md](ARCHITECTURE.md) and [docs/INTEGRATION.md](docs/INTEGRATION.md).
@@ -103,6 +121,7 @@ More detail in [ARCHITECTURE.md](ARCHITECTURE.md) and [docs/INTEGRATION.md](docs
 | sha2 / hex | chunk hashes |
 | serde / serde_json | manifest serialization |
 | thiserror | errors |
+| reqwest (feature-gated) | live HTTP adapters |
 
 ## License
 

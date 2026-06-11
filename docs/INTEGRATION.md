@@ -1,6 +1,6 @@
 # Integration with Sia tooling
 
-How core-sync-rs is meant to connect to `sia_storage` and indexd. The repo currently uses in-memory mocks — this doc describes the real wiring.
+How core-sync-rs is meant to connect to `sia_storage` and indexd. The repo now ships in-memory mocks by default and feature-gated live adapters under `sia-live`.
 
 ## Stack
 
@@ -35,7 +35,7 @@ Manifests live in object metadata:
 
 Key: `coresync:manifest`
 
-The `ManifestStore` trait in `src/indexd.rs` abstracts get/put. Production code would read this from `Sdk::object()` and write via `update_object_metadata()`.
+The `ManifestStore` trait in `src/indexd.rs` abstracts get/put. Production code would read this from `Sdk::object()` and write via the application API. The live HTTP adapter lives in `src/indexd_live.rs` and is enabled with `--features sia-live`.
 
 ## sia_storage
 
@@ -48,7 +48,23 @@ sdk.upload(object, Cursor::new(packed), UploadOptions::default()).await?;
 sdk.pin_object(&object).await?;
 ```
 
-The `StorageBackend` trait in `src/sia.rs` is the hook point. `InMemoryStorageBackend` is what tests and the demo use today.
+The `StorageBackend` trait in `src/sia.rs` is the hook point. `InMemoryStorageBackend` is what tests and the default demo use today. The live adapter lives in `src/sia_live.rs` and is enabled with `--features sia-live`.
+
+## Live demo
+
+Set these environment variables before running the live example:
+
+- `CORE_SYNC_SIA_STORAGE_URL`
+- `CORE_SYNC_SIA_STORAGE_TOKEN`
+- `CORE_SYNC_INDEXD_URL`
+- `CORE_SYNC_INDEXD_TOKEN`
+- `CORE_SYNC_OBJECT_KEY`
+
+Then run:
+
+```bash
+cargo run --example live_sync --features sia-live
+```
 
 ## Full flow
 

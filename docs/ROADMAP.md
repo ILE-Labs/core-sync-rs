@@ -7,20 +7,11 @@ Rough plan for what comes after the current local engine.
 - FastCDC chunker, SHA-256 manifests
 - Diff engine, delta assembly
 - Pipeline with in-memory indexd + Sia mocks
+- Feature-gated live Sia storage adapter
+- Feature-gated live indexd manifest adapter
 - Test suite, CI
 
 ## Up next
-
-**Sia SDK hookup**
-
-- `StorageBackend` adapter around `sia_storage::Sdk::upload`
-- Example that uploads to a test indexer
-- `PackedUpload` for batching small chunks
-
-**indexd hookup**
-
-- `ManifestStore` adapter reading/writing `coresync:manifest` on objects
-- Test against a live indexer
 
 **Tooling**
 
