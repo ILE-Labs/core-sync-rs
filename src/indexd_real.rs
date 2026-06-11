@@ -1,7 +1,7 @@
 //! Feature-gated live indexd backend.
 //!
-//! This adapter reads and writes manifest metadata over HTTP when the
-//! `sia-live` feature is enabled.
+//! This adapter persists file manifests through the live indexd HTTP API when
+//! the `sia-live` feature is enabled.
 
 use crate::error::{CoreSyncError, Result};
 use crate::indexd::{ManifestRecord, ManifestStore};
@@ -12,39 +12,37 @@ use std::env;
 use std::time::Duration;
 
 /// Environment variable for the live indexd base URL.
-pub const INDEXD_BASE_URL_ENV: &str = "CORE_SYNC_INDEXD_URL";
+pub const INDEXD_ENDPOINT_ENV: &str = "INDEXD_ENDPOINT";
 
-/// Environment variable for the indexd bearer token.
-pub const INDEXD_TOKEN_ENV: &str = "CORE_SYNC_INDEXD_TOKEN";
+/// Environment variable for the indexd API key.
+pub const INDEXD_API_KEY_ENV: &str = "INDEXD_API_KEY";
 
 /// Configuration for the live indexd adapter.
 #[derive(Debug, Clone)]
 pub struct IndexdLiveConfig {
     /// Base URL of the live indexd service.
-    pub indexd_base_url: String,
-    /// Optional bearer token used for authentication.
-    pub bearer_token: Option<String>,
+    pub endpoint: String,
+    /// API key used for authentication.
+    pub api_key: String,
 }
 
 impl IndexdLiveConfig {
     /// Loads the live indexd configuration from environment variables.
     pub fn from_env() -> Result<Self> {
-        let indexd_base_url = env::var(INDEXD_BASE_URL_ENV).map_err(|_| {
+        let endpoint = env::var(INDEXD_ENDPOINT_ENV).map_err(|_| {
             CoreSyncError::Indexd(format!(
-                "missing environment variable {INDEXD_BASE_URL_ENV}"
+                "missing environment variable {INDEXD_ENDPOINT_ENV}"
             ))
         })?;
+        let api_key = env::var(INDEXD_API_KEY_ENV).map_err(|_| {
+            CoreSyncError::Indexd(format!("missing environment variable {INDEXD_API_KEY_ENV}"))
+        })?;
 
-        let bearer_token = env::var(INDEXD_TOKEN_ENV).ok().filter(|v| !v.is_empty());
-
-        Ok(Self {
-            indexd_base_url,
-            bearer_token,
-        })
+        Ok(Self { endpoint, api_key })
     }
 }
 
-/// Live manifest store that reads and writes object metadata via HTTP.
+/// Live manifest store backed by indexd.
 #[derive(Debug, Clone)]
 pub struct IndexdManifestStore {
     client: Client,
@@ -66,30 +64,34 @@ impl IndexdManifestStore {
     pub fn from_env() -> Result<Self> {
         Self::new(IndexdLiveConfig::from_env()?)
     }
+
+    fn auth(
+        &self,
+        request: reqwest::blocking::RequestBuilder,
+    ) -> reqwest::blocking::RequestBuilder {
+        request.header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", self.config.api_key),
+        )
+    }
 }
 
 #[derive(Debug, Deserialize)]
 struct ManifestBody {
     #[serde(default)]
-    #[serde(rename = "version")]
-    _version: Option<u32>,
-    #[serde(default)]
     manifest: Option<FileManifest>,
+    #[serde(default)]
+    record: Option<ManifestRecord>,
 }
 
 impl ManifestStore for IndexdManifestStore {
     fn get_manifest(&self, object_key: &str) -> Result<Option<FileManifest>> {
         let url = endpoint(
-            &self.config.indexd_base_url,
-            &format!("api/objects/{}", encode_path_segment(object_key)),
+            &self.config.endpoint,
+            &format!("manifests/{}", encode_path_segment(object_key)),
         );
-
-        let mut request = self.client.get(url);
-        if let Some(token) = &self.config.bearer_token {
-            request = request.bearer_auth(token);
-        }
-
-        let response = request
+        let response = self
+            .auth(self.client.get(url))
             .send()
             .map_err(|e| CoreSyncError::Indexd(e.to_string()))?;
 
@@ -110,10 +112,15 @@ impl ManifestStore for IndexdManifestStore {
             .map_err(|e| CoreSyncError::Indexd(e.to_string()))?;
 
         if let Ok(record) = ManifestRecord::from_json(&body) {
+            record.manifest.validate()?;
             return Ok(Some(record.manifest));
         }
 
         if let Ok(body) = serde_json::from_str::<ManifestBody>(&body) {
+            if let Some(record) = body.record {
+                record.manifest.validate()?;
+                return Ok(Some(record.manifest));
+            }
             if let Some(manifest) = body.manifest {
                 manifest.validate()?;
                 return Ok(Some(manifest));
@@ -130,25 +137,20 @@ impl ManifestStore for IndexdManifestStore {
         manifest.validate()?;
 
         let url = endpoint(
-            &self.config.indexd_base_url,
-            &format!("api/objects/{}", encode_path_segment(object_key)),
+            &self.config.endpoint,
+            &format!("manifests/{}", encode_path_segment(object_key)),
         );
-
         let body = ManifestRecord::new(manifest.clone())
             .to_json()
             .map_err(|e| CoreSyncError::Indexd(e.to_string()))?;
 
-        let mut request = self
-            .client
-            .post(url)
-            .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .body(body);
-
-        if let Some(token) = &self.config.bearer_token {
-            request = request.bearer_auth(token);
-        }
-
-        let response = request
+        let response = self
+            .auth(
+                self.client
+                    .put(url)
+                    .header(reqwest::header::CONTENT_TYPE, "application/json")
+                    .body(body),
+            )
             .send()
             .map_err(|e| CoreSyncError::Indexd(e.to_string()))?;
 

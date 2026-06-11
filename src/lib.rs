@@ -42,9 +42,9 @@ pub mod sia;
 pub mod sync_engine;
 
 #[cfg(feature = "sia-live")]
-pub mod indexd_live;
+pub mod indexd_real;
 
 #[cfg(feature = "sia-live")]
-pub mod sia_live;
+pub mod sia_real;
 
 pub use error::{CoreSyncError, Result};

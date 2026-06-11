@@ -2,7 +2,7 @@
 
 Local differential sync for the [Sia](https://sia.tech) network.
 
-Early-stage library — the local chunking and diff engine works and is tested; live `sia_storage` and indexd wiring is available behind a feature flag. See [Scope](#scope).
+Early-stage library - the local chunking and diff engine works and is tested; live `sia_storage` and indexd wiring is available behind a feature flag. See [Scope](#scope).
 The live wiring is now available behind the `sia-live` feature flag while the mock path remains the default.
 
 ## What it does
@@ -10,20 +10,39 @@ The live wiring is now available behind the `sia-live` feature flag while the mo
 When a file changes, most sync tools re-upload the whole thing. CoreSync chunks the file locally with FastCDC, hashes each piece, diffs against what the remote already has, and uploads only the bytes that are actually new.
 
 ```
-Standard sync:     60 KB file, small edit  →  upload 60 KB
-CoreSync:          60 KB file, append 10 KB →  upload ~11 KB (rest reused)
+Standard sync:     60 KB file, small edit  ->  upload 60 KB
+CoreSync:          60 KB file, append 10 KB ->  upload ~11 KB (rest reused)
 ```
 
 It doesn't replace Sia's networking or storage. The split looks like this:
 
 ```
-core-sync-rs  →  chunk, diff, pack delta locally
-sia_storage   →  upload, encrypt, erasure-code
-indexd        →  store chunk manifests on objects
+core-sync-rs  ->  chunk, diff, pack delta locally
+sia_storage   ->  upload, encrypt, erasure-code
+indexd        ->  store chunk manifests on objects
 ```
 
 Right now the Sia SDK and indexd sides are mocked in memory so you can run everything without credentials.
 When you want to talk to live services, enable `sia-live` and provide the live URLs and credentials described below.
+
+## Live Sia Integration
+
+The live path is feature-gated so the mock path remains the default. It is an HTTP integration layer over the live endpoints, not a full upstream SDK binding.
+
+1. Create a local `.env` file in the project root.
+2. Set the live storage and indexd endpoints and credentials in that file.
+3. Run the demo with the live feature flag:
+
+```bash
+cargo run --example sia_live_demo --features sia-live
+```
+
+Required environment variables in `.env`:
+
+- `SIA_API_ENDPOINT`
+- `SIA_API_PASSWORD`
+- `INDEXD_ENDPOINT`
+- `INDEXD_API_KEY`
 
 ## Getting Started
 
@@ -48,25 +67,13 @@ You need Rust stable installed on your system.
    ```
    You will see output detailing chunk count, reused chunks, uploaded delta sizes, and bandwidth savings.
 
-3. **Run the Live Sia Integration Demo**
-   The live demo uses the `sia-live` feature flag and connects to real storage and indexd endpoints configured through environment variables.
-   ```bash
-   cargo run --example live_sync --features sia-live
-   ```
-   Copy `.env.example` to `.env` or export the variables manually before running the demo:
-   - `CORE_SYNC_SIA_STORAGE_URL`
-   - `CORE_SYNC_SIA_STORAGE_TOKEN`
-   - `CORE_SYNC_INDEXD_URL`
-   - `CORE_SYNC_INDEXD_TOKEN`
-   - `CORE_SYNC_OBJECT_KEY`
-
-4. **Run the Test Suite**
+3. **Run the Test Suite**
    Run all unit and integration tests (validating CDC boundary conditions, offset safe-casting, concurrency safety, lock poisoning, and schema versioning):
    ```bash
    cargo test
    ```
 
-5. **Diff Two Local Files**
+4. **Diff Two Local Files**
    To compute and verify a sync plan between two arbitrary files on disk:
    ```bash
    cargo run --example diff_two_files -- <path-to-old-file> <path-to-new-file>
@@ -93,22 +100,22 @@ You need Rust stable installed on your system.
 
 ```
 src/
-├── chunker.rs          FastCDC + hashing
-├── manifest.rs         ChunkMeta, FileManifest
-├── sync_engine.rs      diff remote vs local
-├── payload.rs          assemble upload bytes
-├── indexd.rs           manifest store trait + mock
-├── sia.rs              storage backend trait + mock
-├── indexd_live.rs      live indexd adapter (feature-gated)
-├── sia_live.rs         live Sia storage adapter (feature-gated)
-├── pipeline.rs         orchestration
-└── bin/core-sync-rs.rs demo
+|-- chunker.rs          FastCDC + hashing
+|-- manifest.rs         ChunkMeta, FileManifest
+|-- sync_engine.rs      diff remote vs local
+|-- payload.rs          assemble upload bytes
+|-- indexd.rs           manifest store trait + mock
+|-- sia.rs              storage backend trait + mock
+|-- indexd_real.rs      live indexd adapter (feature-gated)
+|-- sia_real.rs         live Sia storage adapter (feature-gated)
+|-- pipeline.rs         orchestration
+`-- bin/core-sync-rs.rs demo
 
 tests/sync_integration.rs
 examples/
-├── diff_two_files.rs
-├── sync_pipeline.rs
-└── live_sync.rs
+|-- diff_two_files.rs
+|-- sync_pipeline.rs
+`-- sia_live_demo.rs
 ```
 
 More detail in [ARCHITECTURE.md](ARCHITECTURE.md) and [docs/INTEGRATION.md](docs/INTEGRATION.md).

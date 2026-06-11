@@ -1,6 +1,6 @@
 # Integration with Sia tooling
 
-How core-sync-rs is meant to connect to `sia_storage` and indexd. The repo now ships in-memory mocks by default and feature-gated live adapters under `sia-live`.
+How core-sync-rs is meant to connect to `sia_storage` and indexd. The repo now ships in-memory mocks by default and feature-gated live adapters under `sia-live`. The live path is an HTTP integration layer, not a verified upstream SDK binding.
 
 ## Stack
 
@@ -11,8 +11,8 @@ How core-sync-rs is meant to connect to `sia_storage` and indexd. The repo now s
 | indexd | object metadata, manifest lookup |
 
 ```
-Local file → core-sync-rs → sia_storage → hosts
-                ↕
+Local file -> core-sync-rs -> sia_storage -> hosts
+                ^
               indexd
 ```
 
@@ -35,35 +35,34 @@ Manifests live in object metadata:
 
 Key: `coresync:manifest`
 
-The `ManifestStore` trait in `src/indexd.rs` abstracts get/put. Production code would read this from `Sdk::object()` and write via the application API. The live HTTP adapter lives in `src/indexd_live.rs` and is enabled with `--features sia-live`.
+The `ManifestStore` trait in `src/indexd.rs` abstracts get/put. Production code would read this from `Sdk::object()` and write via the application API. The live HTTP adapter lives in `src/indexd_real.rs` and is enabled with `--features sia-live`.
 
 ## sia_storage
 
 After CoreSync builds a `DeltaPayload`, chunk bytes get packed in order and passed to the SDK:
 
 ```rust
-// sketch — not in repo yet
+// sketch - not in repo yet
 let packed = pack_delta_stream(&delta);
 sdk.upload(object, Cursor::new(packed), UploadOptions::default()).await?;
 sdk.pin_object(&object).await?;
 ```
 
-The `StorageBackend` trait in `src/sia.rs` is the hook point. `InMemoryStorageBackend` is what tests and the default demo use today. The live adapter lives in `src/sia_live.rs` and is enabled with `--features sia-live`.
+The `StorageBackend` trait in `src/sia.rs` is the hook point. `InMemoryStorageBackend` is what tests and the default demo use today. The live adapter lives in `src/sia_real.rs` and is enabled with `--features sia-live`.
 
 ## Live demo
 
-Set these environment variables before running the live example:
+Create a local `.env` file before running the live example and set these variables:
 
-- `CORE_SYNC_SIA_STORAGE_URL`
-- `CORE_SYNC_SIA_STORAGE_TOKEN`
-- `CORE_SYNC_INDEXD_URL`
-- `CORE_SYNC_INDEXD_TOKEN`
-- `CORE_SYNC_OBJECT_KEY`
+- `SIA_API_ENDPOINT`
+- `SIA_API_PASSWORD`
+- `INDEXD_ENDPOINT`
+- `INDEXD_API_KEY`
 
 Then run:
 
 ```bash
-cargo run --example live_sync --features sia-live
+cargo run --example sia_live_demo --features sia-live
 ```
 
 ## Full flow
@@ -78,7 +77,7 @@ cargo run --example live_sync --features sia-live
 
 ## SDK references
 
-- Rust: [sia_storage](https://docs.rs/sia_storage) — `Builder`, `Sdk`, `upload`
+- Rust: [sia_storage](https://docs.rs/sia_storage) - `Builder`, `Sdk`, `upload`
 - TypeScript: [@siafoundation/sia-storage](https://www.npmjs.com/package/@siafoundation/sia-storage)
 
 Same idea either way: CoreSync produces the bytes, the SDK ships them.
