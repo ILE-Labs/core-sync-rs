@@ -1,6 +1,4 @@
-# core-sync-rs
-
-Local differential sync for the [Sia](https://sia.tech) network.
+# Local differential sync for the [Sia](https://sia.tech) network.
 
 Early-stage library — the local chunking and diff engine is complete and tested. Live wiring is available behind the `sia-live` feature flag (HTTP adapters today; native `sia_storage` / indexd SDK binding is planned). See [Scope](#scope) and [Integration maturity](docs/INTEGRATION.md#integration-maturity).
 
@@ -133,4 +131,4 @@ More detail in [ARCHITECTURE.md](ARCHITECTURE.md) and [docs/INTEGRATION.md](docs
 
 ## License
 
-MIT
+[MIT](LICENSE)
