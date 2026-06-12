@@ -1,7 +1,8 @@
-//! Feature-gated live Sia storage backend.
+//! Feature-gated HTTP shim for Sia storage (demo / integration proof).
 //!
-//! This adapter uploads delta chunk bytes to the live Sia HTTP API when the
-//! `sia-live` feature is enabled.
+//! Calls CoreSync-defined routes (`PUT/HEAD /chunks/{hash}`), **not** renterd's
+//! `/api/worker/object/{key}` or `sia_storage::Sdk::upload`. Use with a
+//! compatible proxy, or prefer the `sia-sdk` feature for official Sia tooling.
 
 use crate::error::{CoreSyncError, Result};
 use crate::payload::DeltaPayload;

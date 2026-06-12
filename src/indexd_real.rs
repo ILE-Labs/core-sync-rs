@@ -1,7 +1,8 @@
-//! Feature-gated live indexd backend.
+//! Feature-gated HTTP shim for manifest persistence (demo / integration proof).
 //!
-//! This adapter persists file manifests through the live indexd HTTP API when
-//! the `sia-live` feature is enabled.
+//! Calls CoreSync-defined routes (`GET/PUT /manifests/{key}`), **not** indexd's
+//! `/api/objects/{key}` or `Sdk::update_object_metadata`. Use with a compatible
+//! proxy, or prefer the `sia-sdk` feature for official Sia tooling.
 
 use crate::error::{CoreSyncError, Result};
 use crate::indexd::{ManifestRecord, ManifestStore};

@@ -47,4 +47,7 @@ pub mod indexd_real;
 #[cfg(feature = "sia-live")]
 pub mod sia_real;
 
+#[cfg(feature = "sia-sdk")]
+pub mod sia_sdk;
+
 pub use error::{CoreSyncError, Result};

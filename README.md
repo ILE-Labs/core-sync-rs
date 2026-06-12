@@ -35,9 +35,9 @@ cargo run --example sia_live_demo --features sia-live -- ./testfile.txt
 
 3. The demo uploads a file, then syncs a modified version, printing bandwidth savings on each run.
 
-Requirements: a running renterd node or Sia Storage API endpoint, and an indexd instance.
+Requirements: **shim-compatible HTTP endpoints** that implement CoreSync's custom routes (`PUT/HEAD /chunks/{hash}` and `GET/PUT /manifests/{key}`). Vanilla renterd + official indexd do **not** expose those paths — pointing them at the URLs in `.env.example` will fail unless you deploy a compatible proxy or adapter.
 
-The live path is feature-gated (`sia-live`) so mocks remain the default for CI.
+The live path is feature-gated (`sia-live`) so mocks remain the default for CI. Verified integration with official Sia tooling uses the `sia-sdk` feature (`sia_storage::Sdk`); see [Integration maturity](docs/INTEGRATION.md#integration-maturity).
 
 **Note for adopters:** the live adapters are HTTP shims that prove differential sync against persistent remote state. They are not yet a verified `sia_storage` / indexd SDK binding. The sync engine is complete and tested; SDK-native upload and manifest persistence are the next integration milestone. See [Integration maturity](docs/INTEGRATION.md#integration-maturity).
 
@@ -89,7 +89,7 @@ You need Rust stable installed on your system.
 
 **Not yet**
 
-- Native `sia_storage` / indexd SDK adapters (HTTP shims ship today under `sia-live`)
+- SDK adapters are scaffolded under `sia-sdk`; live verification against a running indexd is still open (HTTP shims ship under `sia-live`)
 - CLI, watch mode, directory sync
 - Streaming reads for large files
 - crates.io release
@@ -105,7 +105,8 @@ src/
 |-- indexd.rs           manifest store trait + mock
 |-- sia.rs              storage backend trait + mock
 |-- indexd_real.rs      live indexd adapter (feature-gated)
-|-- sia_real.rs         live Sia storage adapter (feature-gated)
+|-- sia_real.rs         HTTP shim storage adapter (`sia-live`)
+|-- sia_sdk.rs          SDK-backed storage + manifest adapter (`sia-sdk`)
 |-- pipeline.rs         orchestration
 `-- bin/core-sync-rs.rs demo
 
