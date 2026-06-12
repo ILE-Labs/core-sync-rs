@@ -43,6 +43,9 @@ fn main() {
 
 #[cfg(feature = "sia-live")]
 fn run() -> Result<()> {
+    // Load `.env` from the project root when present (ignored if missing).
+    let _ = dotenvy::dotenv();
+
     println!("core-sync-rs live Sia demo");
     println!("==========================\n");
 

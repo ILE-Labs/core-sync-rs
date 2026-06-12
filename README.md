@@ -2,8 +2,7 @@
 
 Local differential sync for the [Sia](https://sia.tech) network.
 
-Early-stage library - the local chunking and diff engine works and is tested; live `sia_storage` and indexd wiring is available behind a feature flag. See [Scope](#scope).
-The live wiring is now available behind the `sia-live` feature flag while the mock path remains the default.
+Early-stage library — the local chunking and diff engine is complete and tested. Live wiring is available behind the `sia-live` feature flag (HTTP adapters today; native `sia_storage` / indexd SDK binding is planned). See [Scope](#scope) and [Integration maturity](docs/INTEGRATION.md#integration-maturity).
 
 ## What it does
 
@@ -27,22 +26,22 @@ When you want to talk to live services, enable `sia-live` and provide the live U
 
 ## Live Sia Integration
 
-The live path is feature-gated so the mock path remains the default. It is an HTTP integration layer over the live endpoints, not a full upstream SDK binding.
+To run against real Sia Storage and indexd:
 
-1. Create a local `.env` file in the project root.
-2. Set the live storage and indexd endpoints and credentials in that file.
-3. Run the demo with the live feature flag:
+1. Copy `.env.example` to `.env` and fill in your credentials.
+2. Run the live demo:
 
 ```bash
-cargo run --example sia_live_demo --features sia-live
+cargo run --example sia_live_demo --features sia-live -- ./testfile.txt
 ```
 
-Required environment variables in `.env`:
+3. The demo uploads a file, then syncs a modified version, printing bandwidth savings on each run.
 
-- `SIA_API_ENDPOINT`
-- `SIA_API_PASSWORD`
-- `INDEXD_ENDPOINT`
-- `INDEXD_API_KEY`
+Requirements: a running renterd node or Sia Storage API endpoint, and an indexd instance.
+
+The live path is feature-gated (`sia-live`) so mocks remain the default for CI.
+
+**Note for adopters:** the live adapters are HTTP shims that prove differential sync against persistent remote state. They are not yet a verified `sia_storage` / indexd SDK binding. The sync engine is complete and tested; SDK-native upload and manifest persistence are the next integration milestone. See [Integration maturity](docs/INTEGRATION.md#integration-maturity).
 
 ## Getting Started
 
@@ -92,6 +91,7 @@ You need Rust stable installed on your system.
 
 **Not yet**
 
+- Native `sia_storage` / indexd SDK adapters (HTTP shims ship today under `sia-live`)
 - CLI, watch mode, directory sync
 - Streaming reads for large files
 - crates.io release
@@ -128,6 +128,7 @@ More detail in [ARCHITECTURE.md](ARCHITECTURE.md) and [docs/INTEGRATION.md](docs
 | sha2 / hex | chunk hashes |
 | serde / serde_json | manifest serialization |
 | thiserror | errors |
+| dotenvy | load `.env` for live demo |
 | reqwest (feature-gated) | live HTTP adapters |
 
 ## License
