@@ -3,30 +3,29 @@
 //! Run with:
 //!
 //! ```bash
-//! cargo run --example sia_live_demo --features sia-live -- <path-to-file>
+//! cargo run --example sia_live_demo --features sia-sdk -- <path-to-file>
 //! ```
+//!
+//! Use `sia-live` instead if you want the HTTP compatibility adapters.
 //!
 //! If no path is provided, the example creates a small temporary file and
 //! appends to it so the second sync can prove differential reuse.
 
-#[cfg(feature = "sia-live")]
-use core_sync_rs::{
-    indexd_real::IndexdManifestStore,
-    pipeline::{sync_file, SyncOptions},
-    sia_real::SiaStorageBackend,
-    Result,
-};
-#[cfg(feature = "sia-live")]
-use sha2::{Digest, Sha256};
-#[cfg(feature = "sia-live")]
+#[cfg(feature = "sia-sdk")]
+use core_sync_rs::sia_sdk::SdkSyncAdapter;
+#[cfg(all(feature = "sia-live", not(feature = "sia-sdk")))]
+use core_sync_rs::{indexd_real::IndexdManifestStore, sia_real::SiaStorageBackend};
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
+use core_sync_rs::{indexd::ManifestStore, sia::StorageBackend, Result};
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
 use std::fs::File;
-#[cfg(feature = "sia-live")]
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
 use std::io::Write;
-#[cfg(feature = "sia-live")]
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
 use std::path::{Path, PathBuf};
 
 fn main() {
-    #[cfg(feature = "sia-live")]
+    #[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
     {
         if let Err(err) = run() {
             eprintln!("error: {err}");
@@ -35,13 +34,15 @@ fn main() {
         return;
     }
 
-    #[cfg(not(feature = "sia-live"))]
+    #[cfg(not(any(feature = "sia-live", feature = "sia-sdk")))]
     {
-        eprintln!("build this example with `--features sia-live` to enable live Sia wiring");
+        eprintln!(
+            "build this example with `--features sia-sdk` for official Sia SDK wiring or `--features sia-live` for the HTTP shim"
+        );
     }
 }
 
-#[cfg(feature = "sia-live")]
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
 fn run() -> Result<()> {
     // Load `.env` from the project root when present (ignored if missing).
     let _ = dotenvy::dotenv();
@@ -49,8 +50,6 @@ fn run() -> Result<()> {
     println!("core-sync-rs live Sia demo");
     println!("==========================\n");
 
-    let manifests = IndexdManifestStore::from_env()?;
-    let storage = SiaStorageBackend::from_env()?;
     let args: Vec<String> = std::env::args().collect();
     let (dir, path, owns_file) = if let Some(input) = args.get(1) {
         let path = PathBuf::from(input);
@@ -70,22 +69,53 @@ fn run() -> Result<()> {
         (dir, path, true)
     };
 
-    let result = run_scenarios(&path, &manifests, &storage);
+    #[cfg(feature = "sia-sdk")]
+    {
+        println!("Using official Sia SDK-backed adapters.");
+        ensure_env(&["SIA_INDEXER_URL", "SIA_APP_KEY"])?;
+        let adapter = SdkSyncAdapter::from_env()?;
+        let result = run_scenarios(&path, &adapter, &adapter);
 
-    if owns_file {
-        let _ = std::fs::remove_file(&path);
-        let _ = std::fs::remove_dir_all(&dir);
+        if owns_file {
+            let _ = std::fs::remove_file(&path);
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        return result;
     }
 
-    result
+    #[cfg(all(not(feature = "sia-sdk"), feature = "sia-live"))]
+    {
+        println!("Using HTTP shim adapters.");
+        ensure_env(&[
+            "SIA_API_ENDPOINT",
+            "SIA_API_PASSWORD",
+            "INDEXD_ENDPOINT",
+            "INDEXD_API_KEY",
+        ])?;
+        let manifests = IndexdManifestStore::from_env()?;
+        let storage = SiaStorageBackend::from_env()?;
+        let result = run_scenarios(&path, &manifests, &storage);
+
+        if owns_file {
+            let _ = std::fs::remove_file(&path);
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        return result;
+    }
 }
 
-#[cfg(feature = "sia-live")]
-fn run_scenarios(
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
+fn run_scenarios<M, S>(
     path: &Path,
-    manifests: &IndexdManifestStore,
-    storage: &SiaStorageBackend,
-) -> Result<()> {
+    manifests: &M,
+    storage: &S,
+) -> Result<()>
+where
+    M: ManifestStore,
+    S: StorageBackend,
+{
     if !path.exists() {
         write_file(path, b"core-sync-rs live demo\nfirst revision\n")?;
     }
@@ -123,22 +153,26 @@ fn run_scenarios(
     Ok(())
 }
 
-#[cfg(feature = "sia-live")]
-fn run_pipeline_on_path(
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
+fn run_pipeline_on_path<M, S>(
     name: &str,
     local_path: &Path,
     object_key: &str,
-    store: &IndexdManifestStore,
-    storage: &SiaStorageBackend,
-) -> Result<core_sync_rs::pipeline::SyncReport> {
+    store: &M,
+    storage: &S,
+) -> Result<core_sync_rs::pipeline::SyncReport>
+where
+    M: ManifestStore,
+    S: StorageBackend,
+{
     println!("Scenario: {name}");
     println!("  file: {}", local_path.display());
     println!("  object key: {object_key}");
     println!("  {}", "-".repeat(60));
 
-    let report = sync_file(
+    let report = core_sync_rs::pipeline::sync_file(
         local_path,
-        &SyncOptions {
+        &core_sync_rs::pipeline::SyncOptions {
             object_key: object_key.into(),
         },
         store,
@@ -179,21 +213,21 @@ fn run_pipeline_on_path(
     Ok(report)
 }
 
-#[cfg(feature = "sia-live")]
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
 fn object_key_for(path: &Path) -> String {
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("dataset.bin");
     let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let mut hasher = Sha256::new();
+    let mut hasher = sha2::Sha256::new();
     hasher.update(canonical.to_string_lossy().as_bytes());
     let short_hash = hex::encode(&hasher.finalize()[..8]);
     format!("live-demo/{file_name}-{short_hash}")
 }
 
-#[cfg(feature = "sia-live")]
-fn write_file(path: &Path, data: &[u8]) -> Result<()> {
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
+fn write_file(path: &std::path::Path, data: &[u8]) -> core_sync_rs::Result<()> {
     let mut file = File::create(path).map_err(|source| core_sync_rs::CoreSyncError::Io {
         path: path.display().to_string(),
         source,
@@ -204,4 +238,22 @@ fn write_file(path: &Path, data: &[u8]) -> Result<()> {
             source,
         })?;
     Ok(())
+}
+
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
+fn ensure_env(names: &[&str]) -> core_sync_rs::Result<()> {
+    let missing: Vec<&str> = names
+        .iter()
+        .copied()
+        .filter(|name| std::env::var(name).map(|v| v.trim().is_empty()).unwrap_or(true))
+        .collect();
+
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    Err(core_sync_rs::CoreSyncError::Storage(format!(
+        "missing required environment variables: {}",
+        missing.join(", ")
+    )))
 }

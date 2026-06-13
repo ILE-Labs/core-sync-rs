@@ -9,11 +9,7 @@ use crate::indexd::{ManifestRecord, ManifestStore, MANIFEST_METADATA_KEY};
 use crate::manifest::FileManifest;
 use crate::payload::DeltaPayload;
 use crate::sia::{pack_delta_stream, StorageBackend, UploadReceipt};
-use sha2::{Digest, Sha256};
-use sia_storage::{
-    app_id, AppKey, AppMetadata, Builder, Hash256, Object, Sdk, UploadOptions,
-};
-use std::collections::HashMap;
+use sia_storage::{app_id, AppKey, AppMetadata, Builder, Object, ObjectsCursor, Sdk, UploadOptions};
 use std::env;
 use std::io::Cursor;
 use std::sync::{PoisonError, RwLock};
@@ -21,6 +17,7 @@ use tokio::runtime::Runtime;
 
 /// Maximum metadata size indexd accepts on a pinned object (see indexd OpenAPI).
 const MAX_OBJECT_METADATA_BYTES: usize = 1024;
+const OBJECT_PAGE_SIZE: usize = 100;
 
 /// Environment variable for the indexd URL used by the SDK.
 pub const SIA_INDEXER_URL_ENV: &str = "SIA_INDEXER_URL";
@@ -71,7 +68,7 @@ impl SdkSyncConfig {
 pub struct SdkSyncAdapter {
     sdk: Sdk,
     rt: Runtime,
-    objects: RwLock<HashMap<String, Object>>,
+    objects: RwLock<std::collections::HashMap<String, Object>>,
 }
 
 impl SdkSyncAdapter {
@@ -88,7 +85,7 @@ impl SdkSyncAdapter {
                     .map_err(|e| CoreSyncError::Storage(e.to_string()))?
                     .ok_or_else(|| {
                         CoreSyncError::Storage(
-                            "app key not registered with indexer — run the SDK approval flow first"
+                            "app key not registered with indexer - run the SDK approval flow first"
                                 .into(),
                         )
                     })
@@ -97,7 +94,7 @@ impl SdkSyncAdapter {
         Ok(Self {
             sdk,
             rt,
-            objects: RwLock::new(HashMap::new()),
+            objects: RwLock::new(std::collections::HashMap::new()),
         })
     }
 
@@ -137,14 +134,46 @@ impl SdkSyncAdapter {
             return Ok(Some(object));
         }
 
-        let id = object_key_hash(object_key);
-        match self.block_on_storage(self.sdk.object(&id)) {
-            Ok(object) => {
-                self.store_object(object_key, object.clone())?;
-                Ok(Some(object))
+        let mut found: Option<Object> = None;
+        let mut cursor = None;
+        loop {
+            let page = self.block_on_storage(self.sdk.object_events(cursor, Some(OBJECT_PAGE_SIZE)))?;
+            if page.is_empty() {
+                if let Some(object) = &found {
+                    self.store_object(object_key, object.clone())?;
+                }
+                return Ok(found);
             }
-            Err(err) if object_not_found(&err) => Ok(None),
-            Err(err) => Err(err),
+
+            for event in &page {
+                if let Some(object) = &event.object {
+                    if let Some(stored_key) = stored_object_key(object)? {
+                        if stored_key == object_key {
+                            let replace = found
+                                .as_ref()
+                                .map(|current| object.updated_at() > current.updated_at())
+                                .unwrap_or(true);
+                            if replace {
+                                found = Some(object.clone());
+                            }
+                        }
+                    }
+                }
+            }
+
+            if page.len() < OBJECT_PAGE_SIZE {
+                if let Some(object) = found {
+                    self.store_object(object_key, object.clone())?;
+                    return Ok(Some(object));
+                }
+                return Ok(None);
+            }
+
+            let last = page.last().expect("non-empty page");
+            cursor = Some(ObjectsCursor {
+                after: last.updated_at,
+                id: last.id,
+            });
         }
     }
 
@@ -153,11 +182,23 @@ impl SdkSyncAdapter {
             return Ok(None);
         }
 
-        let record = ManifestRecord::from_json(
-            std::str::from_utf8(&object.metadata).map_err(|e| CoreSyncError::Indexd(e.to_string()))?,
-        )?;
-        record.manifest.validate()?;
-        Ok(Some(record.manifest))
+        let metadata = std::str::from_utf8(&object.metadata)
+            .map_err(|e| CoreSyncError::Indexd(e.to_string()))?;
+
+        if let Ok(envelope) = serde_json::from_str::<SdkManifestEnvelope>(metadata) {
+            envelope.record.manifest.validate()?;
+            return Ok(Some(envelope.record.manifest));
+        }
+
+        if let Ok(record) = ManifestRecord::from_json(metadata) {
+            record.manifest.validate()?;
+            return Ok(Some(record.manifest));
+        }
+
+        let manifest = serde_json::from_str::<FileManifest>(metadata)
+            .map_err(|e| CoreSyncError::Indexd(e.to_string()))?;
+        manifest.validate()?;
+        Ok(Some(manifest))
     }
 }
 
@@ -203,8 +244,9 @@ impl ManifestStore for SdkSyncAdapter {
 
     fn put_manifest(&self, object_key: &str, manifest: &FileManifest) -> Result<()> {
         manifest.validate()?;
-        let record = ManifestRecord::new(manifest.clone());
-        let json = record.to_json()?;
+        let envelope = SdkManifestEnvelope::new(object_key, manifest.clone());
+        let json = serde_json::to_string(&envelope)
+            .map_err(|e| CoreSyncError::Indexd(e.to_string()))?;
         if json.len() > MAX_OBJECT_METADATA_BYTES {
             return Err(CoreSyncError::Indexd(format!(
                 "manifest JSON is {} bytes; indexd metadata limit is {MAX_OBJECT_METADATA_BYTES} bytes ({MANIFEST_METADATA_KEY})",
@@ -223,13 +265,6 @@ impl ManifestStore for SdkSyncAdapter {
     }
 }
 
-/// Maps a logical CoreSync object key to the `Hash256` id used by indexd.
-#[must_use]
-pub fn object_key_hash(object_key: &str) -> Hash256 {
-    let digest = Sha256::digest(object_key.as_bytes());
-    Hash256::from(<[u8; 32]>::try_from(digest.as_slice()).expect("sha256 is 32 bytes"))
-}
-
 fn parse_app_key_hex(input: &str) -> Result<AppKey> {
     let bytes = hex::decode(input.trim()).map_err(|e| CoreSyncError::Storage(e.to_string()))?;
     let seed: [u8; 32] = bytes
@@ -238,12 +273,31 @@ fn parse_app_key_hex(input: &str) -> Result<AppKey> {
     Ok(AppKey::import(seed))
 }
 
-fn object_not_found(err: &CoreSyncError) -> bool {
-    let CoreSyncError::Storage(msg) = err else {
-        return false;
-    };
-    let lower = msg.to_ascii_lowercase();
-    lower.contains("not found") || lower.contains("404")
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+struct SdkManifestEnvelope {
+    object_key: String,
+    record: ManifestRecord,
+}
+
+impl SdkManifestEnvelope {
+    fn new(object_key: &str, manifest: FileManifest) -> Self {
+        Self {
+            object_key: object_key.to_string(),
+            record: ManifestRecord::new(manifest),
+        }
+    }
+}
+
+fn stored_object_key(object: &Object) -> Result<Option<String>> {
+    if object.metadata.is_empty() {
+        return Ok(None);
+    }
+    let metadata = std::str::from_utf8(&object.metadata)
+        .map_err(|e| CoreSyncError::Indexd(e.to_string()))?;
+    match serde_json::from_str::<SdkManifestEnvelope>(metadata) {
+        Ok(envelope) => Ok(Some(envelope.object_key)),
+        Err(_) => Ok(None),
+    }
 }
 
 #[cfg(test)]
@@ -251,11 +305,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn object_key_hash_is_stable() {
-        let a = object_key_hash("backups/dataset.bin");
-        let b = object_key_hash("backups/dataset.bin");
-        assert_eq!(a, b);
-        assert_ne!(a, object_key_hash("other-key"));
+    fn envelope_round_trip() {
+        let manifest = {
+            let mut m = FileManifest::new("dataset.bin");
+            m.add_chunk(crate::manifest::ChunkMeta {
+                hash: "abc123".into(),
+                offset: 0,
+                length: 1024,
+            });
+            m
+        };
+        let envelope = SdkManifestEnvelope::new("backups/dataset.bin", manifest.clone());
+        let json = serde_json::to_string(&envelope).unwrap();
+        let decoded: SdkManifestEnvelope = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.object_key, "backups/dataset.bin");
+        assert_eq!(decoded.record.manifest, manifest);
     }
 
     #[test]

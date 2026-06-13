@@ -17,6 +17,7 @@ Rough plan for what comes after the current local engine.
 
 - CLI (`core-sync sync`, watch mode)
 - Config for indexer URL + app key path
+- GUI for visual sync status and job history
 
 **Later**
 
