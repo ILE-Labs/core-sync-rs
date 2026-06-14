@@ -1,4 +1,4 @@
-# WSL Live Demo Runbook
+# Live Demo Runbook
 
 End-to-end verification of `examples/sia_live_demo.rs` against a local WSL
 stack: PostgreSQL → indexd → renterd → `sia_storage` SDK.
