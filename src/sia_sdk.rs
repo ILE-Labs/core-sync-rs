@@ -26,7 +26,7 @@ pub const SIA_INDEXER_URL_ENV: &str = "SIA_INDEXER_URL";
 pub const SIA_APP_KEY_ENV: &str = "SIA_APP_KEY";
 
 /// Stable application identity for `Builder::connected`. Must never change in production.
-const APP_META: AppMetadata = AppMetadata {
+pub const APP_META: AppMetadata = AppMetadata {
     id: app_id!("c0e5790c5e796e63000000000000000000000000000000000000000000000001"),
     name: "core-sync-rs",
     description: "Local differential sync for Sia",

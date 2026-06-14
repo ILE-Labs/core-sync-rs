@@ -20,19 +20,16 @@ stack: PostgreSQL → indexd → renterd → `sia_storage` SDK.
 - **Binary URL patch** — `indexd` had a hardcoded MaxMind download URL.
   Resolved with a binary string patch to point it at a local HTTP server.
 
-### Current blocker
+### Resolved blockers (continued)
 
-`POST /auth/connect` returns `"invalid signature"` when the SDK sends its
-ephemeral-key-signed connect request.
-
-Root cause under investigation:
-- The SDK `Builder::request_connection` signs the request body with a random
-  ephemeral private key and includes the public key + signature as query params.
-- The indexd instance may be running a version whose `/auth/connect` signature
-  format does not match `sia_storage 0.9.1`.
-  
-- Possible fix: connecting to the indexd **admin** port (`9983`) instead of
-  the app UI port (`9982`), or checking if there is a dedicated API port thats not yet exposed.
+- **`invalid signature` on `POST /auth/connect`** — Root cause: the SDK
+  (`sia_storage 0.9.1`) builds the request-hash by hashing the hostname
+  verbatim from the URL string (`localhost`).  indexd (Go) binds to
+  `127.0.0.1:9982` and verifies the signature using *that* literal string.
+  The two hashes disagree, producing `"invalid signature for \"POST\" host
+  \"127.0.0.1:9982/auth/connect\""`.
+  **Fix**: always use `http://127.0.0.1:9982` (never `http://localhost:9982`)
+  in `SIA_INDEXER_URL`.
 
 ## Bring-up checklist
 
@@ -84,7 +81,7 @@ cp /path/to/GeoIP2-City-Test.mmdb ~/.indexd/GeoLite2-City.mmdb
 Run this once to obtain a `SIA_APP_KEY` for the demo:
 
 ```bash
-export SIA_INDEXER_URL=http://localhost:9982
+export SIA_INDEXER_URL=http://127.0.0.1:9982   # must be IP, not 'localhost' — see resolved blockers
 cargo run --example register_app_key --features sia-sdk
 ```
 

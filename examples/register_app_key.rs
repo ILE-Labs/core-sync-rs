@@ -9,25 +9,22 @@
 //! Paste that value into `.env` as `SIA_APP_KEY`.
 //!
 //! Required environment:
-//! - `SIA_INDEXER_URL` (defaults to `http://localhost:9982`)
-//! - `SIA_RECOVERY_PHRASE`
+//! - `SIA_INDEXER_URL` (defaults to `http://127.0.0.1:9982`)
+//!   NOTE: Use `127.0.0.1`, not `localhost`. indexd verifies request signatures
+//!   against the literal IP it binds to; `localhost` causes a hash mismatch and
+//!   an "invalid signature" error.
+//! - `SIA_RECOVERY_PHRASE` — your indexd wallet mnemonic
 
 #[cfg(feature = "sia-sdk")]
 #[tokio::main]
 async fn main() {
-    use sia_storage::{AppMetadata, Builder, app_id};
+    // Re-use the single shared constants — no need to duplicate env var names or
+    // APP_META here; they live in sia_sdk.rs and are the authoritative definitions.
+    use core_sync_rs::sia_sdk::{APP_META, SIA_APP_KEY_ENV, SIA_INDEXER_URL_ENV};
+    use sia_storage::Builder;
 
-    const APP_META: AppMetadata = AppMetadata {
-        id: app_id!("c0e5790c5e796e63000000000000000000000000000000000000000000000001"),
-        name: "core-sync-rs",
-        description: "Local differential sync for Sia",
-        service_url: "https://github.com/ile-labs/core-sync-rs",
-        logo_url: None,
-        callback_url: None,
-    };
-
-    let indexer_url = std::env::var("SIA_INDEXER_URL")
-        .unwrap_or_else(|_| "http://localhost:9982".to_string());
+    let indexer_url = std::env::var(SIA_INDEXER_URL_ENV)
+        .unwrap_or_else(|_| "http://127.0.0.1:9982".to_string());
 
     println!("Connecting to indexd at {indexer_url}...");
 
@@ -60,16 +57,15 @@ async fn main() {
         .expect("registration failed");
 
     let app_key = sdk.app_key();
-    let exported = app_key.export();
-    let hex_key = hex::encode(exported);
+    let hex_key = hex::encode(app_key.export());
 
     println!("\n========================================");
     println!("SUCCESS! Your AppKey (save this in .env):");
-    println!("SIA_APP_KEY={hex_key}");
+    println!("{SIA_APP_KEY_ENV}={hex_key}");
     println!("========================================\n");
     println!("Now run the live demo:");
-    println!("  export SIA_INDEXER_URL={indexer_url}");
-    println!("  export SIA_APP_KEY={hex_key}");
+    println!("  export {SIA_INDEXER_URL_ENV}={indexer_url}");
+    println!("  export {SIA_APP_KEY_ENV}={hex_key}");
     println!("  cargo run --example sia_live_demo --features sia-sdk -- ./testfile.txt");
 }
 

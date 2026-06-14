@@ -73,8 +73,9 @@ fn run() -> Result<()> {
 
     #[cfg(feature = "sia-sdk")]
     {
+        use core_sync_rs::sia_sdk::{SIA_APP_KEY_ENV, SIA_INDEXER_URL_ENV};
         println!("Using official Sia SDK-backed adapters.");
-        ensure_env(&["SIA_INDEXER_URL", "SIA_APP_KEY"])?;
+        ensure_env(&[SIA_INDEXER_URL_ENV, SIA_APP_KEY_ENV])?;
         let adapter = SdkSyncAdapter::from_env()?;
         let result = run_scenarios(&path, &adapter, &adapter);
 

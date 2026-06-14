@@ -57,7 +57,9 @@ cargo run --example diff_two_files -- <old-file> <new-file>
 ### First time: register your app key
 
 ```bash
-export SIA_INDEXER_URL=http://localhost:9982
+# Use 127.0.0.1, not localhost — indexd verifies signatures against the IP it
+# binds to; "localhost" produces a mismatched hash and an "invalid signature" error.
+export SIA_INDEXER_URL=http://127.0.0.1:9982
 cargo run --example register_app_key --features sia-sdk
 ```
 
