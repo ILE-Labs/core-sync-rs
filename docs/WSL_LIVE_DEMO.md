@@ -30,9 +30,9 @@ Root cause under investigation:
   ephemeral private key and includes the public key + signature as query params.
 - The indexd instance may be running a version whose `/auth/connect` signature
   format does not match `sia_storage 0.9.1`.
-- Possible fix: try connecting to the indexd **admin** port (`9983`) instead of
-  the app UI port (`9982`), or check if there is a dedicated API port not yet
-  exposed.
+  
+- Possible fix: connecting to the indexd **admin** port (`9983`) instead of
+  the app UI port (`9982`), or checking if there is a dedicated API port thats not yet exposed.
 
 ## Bring-up checklist
 
