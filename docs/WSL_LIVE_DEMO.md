@@ -7,11 +7,11 @@ stack: PostgreSQL → indexd → renterd → `sia_storage` SDK.
 
 | Service | Port | Status |
 |---------|------|--------|
-| PostgreSQL | 5432 | ✅ Running |
-| indexd (app API) | 9982 | ✅ Running |
-| indexd (admin UI) | 9983 | ✅ Running |
-| indexd (p2p) | 9985 | ✅ Running |
-| renterd | 9980 / 9981 | ✅ Running |
+| PostgreSQL | 5432 | Running |
+| indexd (app API) | 9982 | Running |
+| indexd (admin UI) | 9983 | Running |
+| indexd (p2p) | 9985 | Running |
+| renterd | 9980 / 9981 | Running |
 
 ### Resolved blockers
 
@@ -113,15 +113,3 @@ Expected output (second run — reuse):
 [sync] uploading 1 chunk (N KB total) — 2 chunks reused
 [sync] done — uploaded N KB, saved N KB (NN%)
 ```
-
-## Push hygiene
-
-Never commit:
-
-- `indexd.yml` — contains the wallet recovery phrase
-- `passwords.txt` — local password list
-- `testfile.txt` / `testfile_modified.txt` — test artifacts
-- `*.mmdb` / `*.mmdb.gz` — GeoIP databases (binary, large, proprietary)
-- any of the `*.py` or `*_config.sh` debug scripts
-
-All of the above are covered by `.gitignore`.
