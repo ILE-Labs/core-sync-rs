@@ -8,3 +8,32 @@ Cargo.lock
 *.swo
 .DS_Store
 .env
+
+# Local live-demo service state and secrets
+passwords.txt
+indexd.yml
+start_indexd.sh
+GeoLite2-City.mmdb
+GeoLite2-City.mmdb.gz
+GeoLite2-City-Test.mmdb
+wget-log*
+
+# One-off debug and setup scripts (generated during local WSL bring-up)
+patch_indexd.py
+download_mmdb.py
+check_fetched.py
+check_json.sh
+fix_dns.sh
+run_config.py
+test_config.py
+tags.txt
+
+# Test artifacts and generated files
+testfile.txt
+testfile_modified.txt
+*.mmdb
+*.mmdb.gz
+
+# ctags / language server indexes
+tags
+TAGS

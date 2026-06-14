@@ -13,6 +13,8 @@
 
 #[cfg(feature = "sia-sdk")]
 use core_sync_rs::sia_sdk::SdkSyncAdapter;
+#[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
+use sha2::Digest;
 #[cfg(all(feature = "sia-live", not(feature = "sia-sdk")))]
 use core_sync_rs::{indexd_real::IndexdManifestStore, sia_real::SiaStorageBackend};
 #[cfg(any(feature = "sia-live", feature = "sia-sdk"))]
@@ -253,7 +255,7 @@ fn ensure_env(names: &[&str]) -> core_sync_rs::Result<()> {
     }
 
     Err(core_sync_rs::CoreSyncError::Storage(format!(
-        "missing required environment variables: {}",
+        "missing required environment variables: {}. Copy `.env.example` to `.env` and fill them in for the selected feature path.",
         missing.join(", ")
     )))
 }

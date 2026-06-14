@@ -2,140 +2,150 @@
 
 Local differential sync for the [Sia](https://sia.tech) network.
 
-The local chunking and diff engine is complete and tested. Live wiring is available behind two feature flags:
-- `sia-live` for HTTP compatibility adapters
-- `sia-sdk` for the official `sia_storage` / indexd SDK wiring
-
 ## What it does
 
-When a file changes, most sync tools re-upload the whole thing. CoreSync chunks the file locally with FastCDC, hashes each piece, diffs against what the remote already has, and uploads only the bytes that are actually new.
+Most sync tools re-upload a whole file whenever it changes. CoreSync chunks the
+file with content-defined chunking (FastCDC), hashes each piece, diffs against
+what the remote already has, and uploads only the bytes that actually changed.
 
 ```text
-Standard sync:     60 KB file, small edit  ->  upload 60 KB
-CoreSync:          60 KB file, append 10 KB ->  upload ~11 KB (rest reused)
+Standard sync:  60 KB file, small edit   →  upload 60 KB
+CoreSync:       60 KB file, append 10 KB →  upload ~11 KB (rest reused)
 ```
 
-The project keeps the sync logic local and leaves transport to the backend:
+The sync logic lives entirely in this repo. Transport and storage are handled by
+the backend:
 
 ```text
-core-sync-rs  ->  chunk, diff, pack delta locally
-sia_storage   ->  upload, encrypt, erasure-code
-indexd        ->  store chunk manifests on objects
+core-sync-rs  →  chunk, diff, pack delta locally
+sia_storage   →  upload, encrypt, erasure-code
+indexd        →  store chunk manifests as Sia objects
 ```
 
-## Live Sia Integration
+## Feature flags
 
-To run against real Sia Storage and indexd with the official SDK path:
+| Flag | Purpose |
+|------|---------|
+| `sia-sdk` | Official `sia_storage` crate + indexd SDK path (recommended) |
+| `sia-live` | HTTP shim adapters for custom PUT/HEAD/GET endpoints |
 
-1. Copy `.env.example` to `.env`.
-2. Fill in `SIA_INDEXER_URL` and `SIA_APP_KEY`.
-3. Run the live demo:
-
-```bash
-cargo run --example sia_live_demo --features sia-sdk -- ./testfile.txt
-```
-
-The demo uploads a file, then syncs a modified version, printing bandwidth savings on each run.
-It checks the required environment variables up front and fails fast with a clear message if they are missing.
-
-If you need the HTTP compatibility path instead, use:
-
-```bash
-cargo run --example sia_live_demo --features sia-live -- ./testfile.txt
-```
-
-That path expects shim-compatible endpoints for `PUT/HEAD /chunks/{hash}` and `GET/PUT /manifests/{key}`.
-
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
-You need Rust stable installed on your system.
-- Install Rust: [rustup](https://rustup.rs/)
-- Platform support: this project compiles natively on Windows, macOS, and Linux
+- [Rust stable](https://rustup.rs/)
+- For the live integration: a running [indexd](https://sia.tech) + [renterd](https://sia.tech) instance
 
-### Build and Run
-
-1. Clone the repository:
+### Build and run
 
 ```bash
 git clone https://github.com/ILE-Labs/core-sync-rs
 cd core-sync-rs
-```
 
-2. Run the default demo:
-
-```bash
+# Offline demo (no Sia required)
 cargo run
-```
 
-3. Run the test suite:
-
-```bash
+# Run the test suite
 cargo test
+
+# Diff two local files
+cargo run --example diff_two_files -- <old-file> <new-file>
 ```
 
-4. Diff two local files:
+## Live Sia integration (SDK path)
+
+### First time: register your app key
 
 ```bash
-cargo run --example diff_two_files -- <path-to-old-file> <path-to-new-file>
+export SIA_INDEXER_URL=http://localhost:9982
+cargo run --example register_app_key --features sia-sdk
 ```
+
+This opens an approval URL in the console. Open it in your browser, approve the
+connection, and the tool prints your `SIA_APP_KEY`. Save it to `.env`:
+
+```bash
+cp .env.example .env
+# paste the printed SIA_APP_KEY into .env
+```
+
+### Run the live demo
+
+```bash
+cargo run --example sia_live_demo --features sia-sdk -- ./your-file.txt
+```
+
+The demo uploads the file, then syncs a modified version and prints the
+bandwidth saved on each run. It checks required environment variables up front
+and exits with a clear message if they are missing.
+
+### HTTP compatibility path
+
+If you are targeting a custom shim instead of the official SDK:
+
+```bash
+cargo run --example sia_live_demo --features sia-live -- ./your-file.txt
+```
+
+The shim expects `PUT/HEAD /chunks/{hash}` and `GET/PUT /manifests/{key}`.
 
 ## Scope
 
-**Working now**
+### Implemented and tested
 
 - FastCDC chunking and SHA-256 manifests
 - Manifest diff and delta payload assembly
 - Pipeline orchestration via `pipeline::sync_file`
-- Trait boundaries for indexd and Sia upload, with in-memory mocks and feature-gated live adapters
-- SDK-backed live wiring under `sia-sdk`
-- HTTP compatibility adapters under `sia-live`
-- Tests and CI
+- Trait boundaries for indexd and Sia upload, with in-memory mocks
+- Feature-gated SDK adapter (`sia-sdk`) using the official `sia_storage` crate
+- Feature-gated HTTP shim adapters (`sia-live`)
+- Integration tests and CI
 
-**Not yet**
+### Not yet
 
 - CLI, watch mode, directory sync
 - GUI
-- Streaming reads for large files
+- Streaming reads for very large files
 - crates.io release
 
-## Layout
+## Project layout
 
 ```text
 src/
-|-- chunker.rs          FastCDC + hashing
-|-- manifest.rs         ChunkMeta, FileManifest
-|-- sync_engine.rs      diff remote vs local
-|-- payload.rs          assemble upload bytes
-|-- indexd.rs           manifest store trait + mock
-|-- sia.rs              storage backend trait + mock
-|-- indexd_real.rs      HTTP shim manifest adapter (`sia-live`)
-|-- sia_real.rs         HTTP shim storage adapter (`sia-live`)
-|-- sia_sdk.rs          SDK-backed storage + manifest adapter (`sia-sdk`)
-|-- pipeline.rs         orchestration
-`-- bin/core-sync-rs.rs demo
+├── chunker.rs          FastCDC + SHA-256 hashing
+├── manifest.rs         ChunkMeta, FileManifest
+├── sync_engine.rs      diff remote vs local manifest
+├── payload.rs          assemble upload bytes
+├── indexd.rs           manifest store trait + in-memory mock
+├── sia.rs              storage backend trait + in-memory mock
+├── indexd_real.rs      HTTP shim manifest adapter   (sia-live)
+├── sia_real.rs         HTTP shim storage adapter    (sia-live)
+├── sia_sdk.rs          SDK-backed adapter            (sia-sdk)
+├── pipeline.rs         orchestration
+└── bin/core-sync-rs.rs offline demo binary
 
 tests/sync_integration.rs
 examples/
-|-- diff_two_files.rs
-|-- sync_pipeline.rs
-`-- sia_live_demo.rs
+├── diff_two_files.rs
+├── sync_pipeline.rs
+├── sia_live_demo.rs     live end-to-end demo
+└── register_app_key.rs  one-time SDK key registration helper
 ```
 
-More detail in [docs/INTEGRATION.md](docs/INTEGRATION.md).
+See [ARCHITECTURE.md](ARCHITECTURE.md) for module design rationale.
 
 ## Dependencies
 
-| Crate | Use |
-|-------|-----|
-| fastcdc | content-defined chunking |
-| sha2 / hex | chunk hashes |
-| serde / serde_json | manifest serialization |
-| thiserror | errors |
-| dotenvy | load `.env` for live demo |
-| reqwest (feature-gated) | HTTP compatibility adapters |
-| sia_storage (feature-gated) | official Sia SDK path |
+| Crate | Purpose |
+|-------|---------|
+| `fastcdc` | content-defined chunking |
+| `sha2` / `hex` | chunk hashing |
+| `serde` / `serde_json` | manifest serialization |
+| `thiserror` | error types |
+| `dotenvy` | load `.env` for live demo |
+| `reqwest` *(feature-gated)* | HTTP shim adapters |
+| `tokio` *(feature-gated)* | async runtime for live paths |
+| `sia_storage` *(feature-gated)* | official Sia SDK |
 
 ## License
 
