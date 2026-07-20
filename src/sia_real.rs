@@ -1,6 +1,6 @@
 //! Feature-gated HTTP shim for Sia storage (demo / integration proof).
 //!
-//! Calls CoreSync-defined routes (`PUT/HEAD /chunks/{hash}`), **not** renterd's
+//! Calls CoreSync-defined routes (`PUT/HEAD /chunks/{hash}`), **not** the SDK's
 //! `/api/worker/object/{key}` or `sia_storage::Sdk::upload`. Use with a
 //! compatible proxy, or prefer the `sia-sdk` feature for official Sia tooling.
 

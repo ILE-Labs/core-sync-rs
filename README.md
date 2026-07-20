@@ -34,7 +34,7 @@ indexd        →  store chunk manifests as Sia objects
 ### Prerequisites
 
 - [Rust stable](https://rustup.rs/)
-- For the live integration: a running [indexd](https://sia.tech) + [renterd](https://sia.tech) instance
+- For the live integration: a running [indexd](https://sia.tech) instance
 
 ### Build and run
 

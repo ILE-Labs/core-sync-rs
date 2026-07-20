@@ -45,6 +45,14 @@ FastCDC picks chunk boundaries from content, not fixed offsets. That means:
 
 The demo and tests exercise both patterns.
 
+### The Repacking Challenge
+
+In Sia and other decentralized storage environments, data is packed into fixed-size sectors (e.g., 4 MiB). When files undergo local differential editing and chunking:
+1. **Local CDC boundaries** produce dynamic-sized chunks.
+2. **Sia sectors** require fixed-size block boundaries.
+
+To bridge this gap without full file re-uploads or breaking deduplication, `core-sync-rs` isolates the local changes into packed delta payloads (`src/payload.rs`). During the next synchronization cycle, the local sync engine repacks only the newly added or modified chunk offsets, updating the indexd manifest. This ensures that unchanged parent sectors are not read or written again, avoiding unnecessary host egress/ingress costs.
+
 ## Current state
 
 The local path is implemented: chunking, manifests, diffing, delta assembly, pipeline orchestration. Tests cover reuse on append and insert, manifest validation, and the full mocked pipeline.

@@ -1,7 +1,7 @@
 # Live Demo Runbook
 
 End-to-end verification of `examples/sia_live_demo.rs` against a local WSL
-stack: PostgreSQL → indexd → renterd → `sia_storage` SDK.
+stack: PostgreSQL → indexd → `sia_storage` SDK.
 
 ## Stack status (current)
 
@@ -11,7 +11,6 @@ stack: PostgreSQL → indexd → renterd → `sia_storage` SDK.
 | indexd (app API) | 9982 | Running |
 | indexd (admin UI) | 9983 | Running |
 | indexd (p2p) | 9985 | Running |
-| renterd | 9980 / 9981 | Running |
 
 ### Resolved blockers
 
@@ -19,9 +18,6 @@ stack: PostgreSQL → indexd → renterd → `sia_storage` SDK.
   Resolved by copying the MaxMind test database to `~/.indexd/GeoLite2-City.mmdb`.
 - **Binary URL patch** — `indexd` had a hardcoded MaxMind download URL.
   Resolved with a binary string patch to point it at a local HTTP server.
-
-### Resolved blockers (continued)
-
 - **`invalid signature` on `POST /auth/connect`** — Root cause: the SDK
   (`sia_storage 0.9.1`) builds the request-hash by hashing the hostname
   verbatim from the URL string (`localhost`).  indexd (Go) binds to
@@ -30,6 +26,29 @@ stack: PostgreSQL → indexd → renterd → `sia_storage` SDK.
   \"127.0.0.1:9982/auth/connect\""`.
   **Fix**: always use `http://127.0.0.1:9982` (never `http://localhost:9982`)
   in `SIA_INDEXER_URL`.
+
+## How repacking works
+
+Sia stores data in fixed-size sectors (4 MiB). CoreSync's content-defined chunks
+(FastCDC) are variable-size, so there is a boundary mismatch when chunks are
+written to sectors and then edited locally.
+
+Rather than re-uploading the whole file, CoreSync:
+
+1. Chunks the new local version with FastCDC.
+2. Diffs the new manifest against the remote manifest stored in indexd.
+3. **Repacks only the changed offsets** into a minimal delta payload
+   (`src/payload.rs`).
+4. Uploads the delta bytes; unchanged chunks are never read from disk again.
+5. Writes the updated manifest back to indexd so the next sync starts from the
+   new baseline.
+
+This is why the second-run output shows `reused N chunks` — those chunk hashes
+matched the remote manifest and were skipped entirely, including any sectors they
+occupy on Sia hosts.
+
+See [ARCHITECTURE.md — The Repacking Challenge](../ARCHITECTURE.md#the-repacking-challenge)
+for the full design rationale.
 
 ## Bring-up checklist
 
@@ -73,7 +92,6 @@ cp /path/to/GeoIP2-City-Test.mmdb ~/.indexd/GeoLite2-City.mmdb
 
 ```bash
 ~/.indexd/start_indexd.sh &   # starts indexd
-~/.renterd/start_renterd.sh & # starts renterd
 ```
 
 ## Register an app key (one-time)
@@ -100,13 +118,25 @@ cargo run --example sia_live_demo --features sia-sdk -- ./testfile.txt
 Expected output (first run — full upload):
 
 ```text
-[sync] uploading 3 chunks (N KB total)
-[sync] done — uploaded N KB, saved 0 KB (0%)
+Scenario: Initial upload
+  First sync — full file chunked and registered
+  object key: data/dataset.bin
+  -------------------------------------------------------
+  50000 bytes, 5 chunks
+  first upload — no remote manifest
+  reused 0 chunks, uploading 5 (0.0% reuse)
+  delta: 50000 bytes in 5 chunks (mock upload)
 ```
 
-Expected output (second run — reuse):
+Expected output (second run — reuse after append):
 
 ```text
-[sync] uploading 1 chunk (N KB total) — 2 chunks reused
-[sync] done — uploaded N KB, saved N KB (NN%)
+Scenario: Append edit
+  Append 10 KiB — only delta uploaded
+  object key: data/dataset.bin
+  -------------------------------------------------------
+  60000 bytes, 5 chunks
+  reused 4 chunks, uploading 1 (80.0% reuse)
+  delta: 10998 bytes in 1 chunks (mock upload)
+  saved 49002 bytes vs full file (81.7%)
 ```
